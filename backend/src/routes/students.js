@@ -8,6 +8,39 @@ const express = require('express');
 const router  = express.Router();
 const pool    = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
+const multer  = require('multer');
+const path    = require('path');
+const fs      = require('fs');
+
+// Ensure uploads folder exists in backend/uploads
+const uploadDir = path.join(__dirname, '../../uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB max limit
+});
+
+// File upload route
+router.post('/upload', authenticateToken, upload.single('file'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No file uploaded.' });
+  }
+  const fileUrl = `/uploads/${req.file.filename}`;
+  res.json({ fileUrl });
+});
 
 // ── GET /api/students ─────────────────────────────────────────
 // Returns all active students, sorted by last_name ASC.
@@ -74,13 +107,22 @@ router.get('/:id', authenticateToken, async (req, res) => {
 });
 
 // ── POST /api/students ────────────────────────────────────────
-// Admin manual entry — minimal required fields.
+// Admin manual entry — detailed form.
 router.post('/', authenticateToken, async (req, res) => {
   try {
     const {
-      first_name, last_name, email, cell_phone,
-      program, program_category, status,
-      admin_notes, enrollment_date,
+      first_name, last_name, middle_name, email, cell_phone, home_phone,
+      date_of_birth, gender, ssn_last4,
+      address_street, address_city, address_state, address_zip,
+      program, program_category, status, enrollment_date,
+      emergency_contact_name, emergency_contact_phone, emergency_contact_relation,
+      highest_education, high_school_name, high_school_grad_year, ged_certificate,
+      currently_employed, employer_name, employer_phone,
+      funding_source, financial_aid_status, scholarship, scholarship_name,
+      background_check_date, background_check_passed,
+      drug_test_date, drug_test_passed,
+      immunization_complete, hipaa_signed, enrollment_agreement_signed,
+      admin_notes, photo_url, drive_link
     } = req.body;
 
     if (!first_name || !last_name || !program) {
@@ -89,15 +131,34 @@ router.post('/', authenticateToken, async (req, res) => {
 
     const result = await pool.query(`
       INSERT INTO students (
-        first_name, last_name, email, cell_phone,
-        program, program_category, status, admin_notes,
-        enrollment_date, intake_source
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'admin')
-      RETURNING *
+        first_name, last_name, middle_name, email, cell_phone, home_phone,
+        date_of_birth, gender, ssn_last4,
+        address_street, address_city, address_state, address_zip,
+        program, program_category, status, enrollment_date,
+        emergency_contact_name, emergency_contact_phone, emergency_contact_relation,
+        highest_education, high_school_name, high_school_grad_year, ged_certificate,
+        currently_employed, employer_name, employer_phone,
+        funding_source, financial_aid_status, scholarship, scholarship_name,
+        background_check_date, background_check_passed,
+        drug_test_date, drug_test_passed,
+        immunization_complete, hipaa_signed, enrollment_agreement_signed,
+        admin_notes, photo_url, drive_link, intake_source
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, 'admin'
+      ) RETURNING *
     `, [
-      first_name, last_name, email || null, cell_phone || null,
-      program, program_category || null, status || 'Active',
-      admin_notes || null, enrollment_date || new Date().toISOString().split('T')[0],
+      first_name, last_name, middle_name || null, email || null, cell_phone || null, home_phone || null,
+      date_of_birth || null, gender || null, ssn_last4 || null,
+      address_street || null, address_city || null, address_state || null, address_zip || null,
+      program, program_category || null, status || 'Active', enrollment_date || new Date().toISOString().split('T')[0],
+      emergency_contact_name || null, emergency_contact_phone || null, emergency_contact_relation || null,
+      highest_education || null, high_school_name || null, high_school_grad_year ? parseInt(high_school_grad_year) : null, ged_certificate === 'true' || ged_certificate === true,
+      currently_employed === 'true' || currently_employed === true, employer_name || null, employer_phone || null,
+      funding_source || null, financial_aid_status || null, scholarship === 'true' || scholarship === true, scholarship_name || null,
+      background_check_date || null, background_check_passed === 'true' || background_check_passed === true,
+      drug_test_date || null, drug_test_passed === 'true' || drug_test_passed === true,
+      immunization_complete === 'true' || immunization_complete === true, hipaa_signed === 'true' || hipaa_signed === true, enrollment_agreement_signed === 'true' || enrollment_agreement_signed === true,
+      admin_notes || null, photo_url || null, drive_link || null
     ]);
 
     res.status(201).json({ student: result.rows[0], message: 'Student created successfully.' });

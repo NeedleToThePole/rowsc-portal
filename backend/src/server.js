@@ -58,6 +58,10 @@ app.use('/api/webhooks', express.urlencoded({ extended: true, limit: '10mb' }));
 // All other routes use JSON
 app.use(express.json({ limit: '10mb' }));
 
+// Serve uploaded files statically
+const path = require('path');
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
 // ── Health Check ──────────────────────────────────────────────
 app.get('/health', (req, res) => {
   res.json({
