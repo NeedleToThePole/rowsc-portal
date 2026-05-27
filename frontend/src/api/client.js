@@ -101,15 +101,13 @@ export const api = {
   },
 
   // ── Legacy Migration ────────────────────────────────────────
-  migrateCsv: async (file, adminSecret) => {
+  migrateCsv: async (file) => {
     const formData = new FormData();
     formData.append('csv', file);
 
-    const res = await axios.post('/api/admin/migrate-csv', formData, {
+    const res = await client.post('/admin/migrate-csv', formData, {
       headers: {
-        'Content-Type': 'multipart/form-data',
-        'X-Admin-Secret': adminSecret,
-        'Authorization': `Bearer ${localStorage.getItem('rowsc_token')}`
+        'Content-Type': 'multipart/form-data'
       }
     });
     return res.data;

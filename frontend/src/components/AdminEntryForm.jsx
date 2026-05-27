@@ -63,7 +63,6 @@ export const AdminEntryForm = ({ onSubmitSuccess, addStudent }) => {
 
   // CSV Migration State
   const [csvFile, setCsvFile] = useState(null);
-  const [adminSecret, setAdminSecret] = useState('');
   const [migrating, setMigrating] = useState(false);
   const [migrationResult, setMigrationResult] = useState(null);
   const [migrationError, setMigrationError] = useState('');
@@ -218,20 +217,16 @@ export const AdminEntryForm = ({ onSubmitSuccess, addStudent }) => {
       setMigrationError('Please select a CSV file.');
       return;
     }
-    if (!adminSecret) {
-      setMigrationError('Authorization Admin Secret key is required.');
-      return;
-    }
 
     setMigrating(true);
     try {
-      const data = await api.migrateCsv(csvFile, adminSecret);
+      const data = await api.migrateCsv(csvFile);
       setMigrationResult(data);
       setCsvFile(null);
       document.getElementById('csv-file-input').value = '';
     } catch (err) {
       console.error(err);
-      setMigrationError(err.response?.data?.error || 'Migration failed. Please check secret key and format.');
+      setMigrationError(err.response?.data?.error || 'Migration failed. Please check file format.');
     } finally {
       setMigrating(false);
     }
@@ -655,18 +650,7 @@ export const AdminEntryForm = ({ onSubmitSuccess, addStudent }) => {
             />
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <label style={{ fontSize: '11px', fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>ADMIN MIGRATION KEY (SECRET)</label>
-            <input
-              type="password"
-              placeholder="Enter Migration Secret Token"
-              value={adminSecret}
-              onChange={(e) => setAdminSecret(e.target.value)}
-              style={{ padding: '8px 12px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '4px', color: '#fff', fontSize: '14px' }}
-              disabled={migrating}
-              required
-            />
-          </div>
+
 
           <button
             type="submit"

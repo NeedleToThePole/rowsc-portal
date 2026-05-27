@@ -9,6 +9,7 @@ const router   = express.Router();
 const multer   = require('multer');
 const { parse } = require('csv-parse');
 const pool     = require('../config/database');
+const { authenticateToken } = require('../middleware/auth');
 
 // Use memory storage (file is not saved to disk)
 const upload = multer({
@@ -23,17 +24,8 @@ const upload = multer({
   },
 });
 
-// ── Admin secret middleware ───────────────────────────────────
-const requireAdminSecret = (req, res, next) => {
-  const secret = req.headers['x-admin-secret'];
-  if (!secret || secret !== process.env.ADMIN_SECRET) {
-    return res.status(403).json({ error: 'Forbidden: invalid admin secret.' });
-  }
-  next();
-};
-
 // ── POST /api/admin/migrate-csv ───────────────────────────────
-router.post('/migrate-csv', requireAdminSecret, upload.single('csv'), async (req, res) => {
+router.post('/migrate-csv', authenticateToken, upload.single('csv'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No CSV file uploaded. Use field name "csv".' });
   }
