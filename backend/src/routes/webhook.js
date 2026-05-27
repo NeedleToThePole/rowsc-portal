@@ -71,90 +71,156 @@ router.post('/jotform', validateJotformSignature, async (req, res) => {
       }
     }
 
-    const query = `
-      INSERT INTO students (
-        first_name, last_name, middle_name, email, cell_phone, home_phone, date_of_birth, gender, ssn_last4,
-        address_street, address_city, address_state, address_zip, program, status, enrollment_date,
-        emergency_contact_name, emergency_contact_phone, emergency_contact_relation,
-        highest_education, high_school_name, high_school_grad_year, ged_certificate,
-        currently_employed, employer_name, employer_phone,
-        funding_source, financial_aid_status, scholarship, scholarship_name,
-        admin_notes, drive_link, photo_url, intake_source, jotform_submission_id, jotform_submission_date, raw_jotform_payload
-      ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9,
-        $10, $11, $12, $13, $14, $15, $16,
-        $17, $18, $19,
-        $20, $21, $22, $23,
-        $24, $25, $26,
-        $27, $28, $29, $30,
-        $31, $32, $33, 'jotform', $34, $35, $36
-      )
-      ON CONFLICT (email) DO UPDATE SET
-        first_name                  = COALESCE(EXCLUDED.first_name, students.first_name),
-        last_name                   = COALESCE(EXCLUDED.last_name, students.last_name),
-        middle_name                 = COALESCE(EXCLUDED.middle_name, students.middle_name),
-        cell_phone                  = COALESCE(EXCLUDED.cell_phone, students.cell_phone),
-        home_phone                  = COALESCE(EXCLUDED.home_phone, students.home_phone),
-        date_of_birth               = COALESCE(EXCLUDED.date_of_birth, students.date_of_birth),
-        gender                      = COALESCE(EXCLUDED.gender, students.gender),
-        ssn_last4                   = COALESCE(EXCLUDED.ssn_last4, students.ssn_last4),
-        address_street              = COALESCE(EXCLUDED.address_street, students.address_street),
-        address_city                = COALESCE(EXCLUDED.address_city, students.address_city),
-        address_state               = COALESCE(EXCLUDED.address_state, students.address_state),
-        address_zip                 = COALESCE(EXCLUDED.address_zip, students.address_zip),
-        program                     = CASE 
-                                        WHEN students.program = EXCLUDED.program THEN students.program
-                                        WHEN students.program LIKE '%' || EXCLUDED.program || '%' THEN students.program
-                                        ELSE students.program || ' & ' || EXCLUDED.program
-                                      END,
-        status                      = EXCLUDED.status,
-        enrollment_date             = COALESCE(EXCLUDED.enrollment_date, students.enrollment_date),
-        emergency_contact_name      = COALESCE(EXCLUDED.emergency_contact_name, students.emergency_contact_name),
-        emergency_contact_phone     = COALESCE(EXCLUDED.emergency_contact_phone, students.emergency_contact_phone),
-        emergency_contact_relation  = COALESCE(EXCLUDED.emergency_contact_relation, students.emergency_contact_relation),
-        highest_education           = COALESCE(EXCLUDED.highest_education, students.highest_education),
-        high_school_name            = COALESCE(EXCLUDED.high_school_name, students.high_school_name),
-        high_school_grad_year       = COALESCE(EXCLUDED.high_school_grad_year, students.high_school_grad_year),
-        ged_certificate             = COALESCE(EXCLUDED.ged_certificate, students.ged_certificate),
-        currently_employed          = COALESCE(EXCLUDED.currently_employed, students.currently_employed),
-        employer_name               = COALESCE(EXCLUDED.employer_name, students.employer_name),
-        employer_phone              = COALESCE(EXCLUDED.employer_phone, students.employer_phone),
-        funding_source              = COALESCE(EXCLUDED.funding_source, students.funding_source),
-        financial_aid_status        = COALESCE(EXCLUDED.financial_aid_status, students.financial_aid_status),
-        scholarship                 = COALESCE(EXCLUDED.scholarship, students.scholarship),
-        scholarship_name            = COALESCE(EXCLUDED.scholarship_name, students.scholarship_name),
-        admin_notes                 = CASE
-                                        WHEN students.program = EXCLUDED.program THEN COALESCE(students.admin_notes, EXCLUDED.admin_notes)
-                                        ELSE COALESCE(students.admin_notes, '') || E'\n[SYSTEM: Duplicate application merged for course: ' || EXCLUDED.program || ']'
-                                      END,
-        drive_link                  = CASE
-                                        WHEN students.drive_link IS NULL THEN EXCLUDED.drive_link
-                                        WHEN EXCLUDED.drive_link IS NULL THEN students.drive_link
-                                        WHEN students.drive_link LIKE '%' || EXCLUDED.drive_link || '%' THEN students.drive_link
-                                        ELSE students.drive_link || ', ' || EXCLUDED.drive_link
-                                      END,
-        photo_url                   = COALESCE(EXCLUDED.photo_url, students.photo_url),
-        jotform_submission_id       = COALESCE(EXCLUDED.jotform_submission_id, students.jotform_submission_id),
-        jotform_submission_date     = COALESCE(EXCLUDED.jotform_submission_date, students.jotform_submission_date),
-        raw_jotform_payload         = students.raw_jotform_payload || EXCLUDED.raw_jotform_payload,
-        updated_at                  = NOW()
-      RETURNING id, first_name, last_name, email, program
-    `;
+    const cleanEmail = studentData.email && studentData.email.trim() ? studentData.email.trim() : null;
 
-    const values = [
-      studentData.first_name, studentData.last_name, studentData.middle_name, studentData.email, studentData.cell_phone, studentData.home_phone, studentData.date_of_birth, studentData.gender, studentData.ssn_last4,
-      studentData.address_street, studentData.address_city, studentData.address_state, studentData.address_zip, studentData.program, studentData.status, studentData.enrollment_date,
-      studentData.emergency_contact_name, studentData.emergency_contact_phone, studentData.emergency_contact_relation,
-      studentData.highest_education, studentData.high_school_name, studentData.high_school_grad_year, studentData.ged_certificate,
-      studentData.currently_employed, studentData.employer_name, studentData.employer_phone,
-      studentData.funding_source, studentData.financial_aid_status, studentData.scholarship, studentData.scholarship_name,
-      studentData.admin_notes, studentData.drive_link, studentData.photo_url, studentData.jotform_submission_id, studentData.jotform_submission_date, JSON.stringify(studentData.raw_jotform_payload)
-    ];
+    // Check if student already exists by email OR by first/last name
+    let existingStudent = null;
+    if (cleanEmail) {
+      const resEmail = await pool.query(
+        'SELECT id, program, drive_link, admin_notes, raw_jotform_payload FROM students WHERE email = $1',
+        [cleanEmail]
+      );
+      if (resEmail.rows.length > 0) {
+        existingStudent = resEmail.rows[0];
+      }
+    }
 
-    const result = await pool.query(query, values);
-    const student = result.rows[0];
+    if (!existingStudent && studentData.first_name && studentData.last_name) {
+      const resName = await pool.query(
+        'SELECT id, program, drive_link, admin_notes, raw_jotform_payload FROM students WHERE LOWER(TRIM(first_name)) = LOWER(TRIM($1)) AND LOWER(TRIM(last_name)) = LOWER(TRIM($2))',
+        [studentData.first_name, studentData.last_name]
+      );
+      if (resName.rows.length > 0) {
+        existingStudent = resName.rows[0];
+      }
+    }
 
-    console.log(`✅ Jotform student inserted: ${student.first_name} ${student.last_name} (ID: ${student.id})`);
+    let studentId;
+    let studentProgram;
+
+    if (existingStudent) {
+      // Merge program
+      const existingProgram = existingStudent.program;
+      let newProgram = studentData.program;
+      if (existingProgram && newProgram && existingProgram !== newProgram && !existingProgram.includes(newProgram)) {
+        newProgram = `${existingProgram} & ${newProgram}`;
+      } else if (existingProgram) {
+        newProgram = existingProgram;
+      }
+
+      // Merge drive link
+      let mergedDriveLink = existingStudent.drive_link;
+      if (studentData.drive_link) {
+        if (!mergedDriveLink) {
+          mergedDriveLink = studentData.drive_link;
+        } else if (!mergedDriveLink.includes(studentData.drive_link)) {
+          mergedDriveLink = `${mergedDriveLink}, ${studentData.drive_link}`;
+        }
+      }
+
+      // Merge admin notes
+      let mergedNotes = existingStudent.admin_notes || '';
+      if (studentData.program && existingProgram && existingProgram !== studentData.program) {
+        mergedNotes = `${mergedNotes}\n[SYSTEM: Duplicate application merged for course: ${studentData.program}]`.trim();
+      }
+
+      // Merge JSON payload
+      const mergedPayload = {
+        ...(existingStudent.raw_jotform_payload || {}),
+        ...(studentData.raw_jotform_payload || {})
+      };
+
+      const result = await pool.query(`
+        UPDATE students SET
+          first_name                  = COALESCE($2, first_name),
+          last_name                   = COALESCE($3, last_name),
+          middle_name                 = COALESCE($4, middle_name),
+          email                       = COALESCE($5, email),
+          cell_phone                  = COALESCE($6, cell_phone),
+          home_phone                  = COALESCE($7, home_phone),
+          date_of_birth               = COALESCE($8, date_of_birth),
+          gender                      = COALESCE($9, gender),
+          ssn_last4                   = COALESCE($10, ssn_last4),
+          address_street              = COALESCE($11, address_street),
+          address_city                = COALESCE($12, address_city),
+          address_state               = COALESCE($13, address_state),
+          address_zip                 = COALESCE($14, address_zip),
+          program                     = $15,
+          status                      = $16,
+          enrollment_date             = COALESCE($17, enrollment_date),
+          emergency_contact_name      = COALESCE($18, emergency_contact_name),
+          emergency_contact_phone     = COALESCE($19, emergency_contact_phone),
+          emergency_contact_relation  = COALESCE($20, emergency_contact_relation),
+          highest_education           = COALESCE($21, highest_education),
+          high_school_name            = COALESCE($22, high_school_name),
+          high_school_grad_year       = COALESCE($23, high_school_grad_year),
+          ged_certificate             = COALESCE($24, ged_certificate),
+          currently_employed          = COALESCE($25, currently_employed),
+          employer_name               = COALESCE($26, employer_name),
+          employer_phone              = COALESCE($27, employer_phone),
+          funding_source              = COALESCE($28, funding_source),
+          financial_aid_status        = COALESCE($29, financial_aid_status),
+          scholarship                 = COALESCE($30, scholarship),
+          scholarship_name            = COALESCE($31, scholarship_name),
+          admin_notes                 = $32,
+          drive_link                  = $33,
+          photo_url                   = COALESCE($34, photo_url),
+          jotform_submission_id       = COALESCE($35, jotform_submission_id),
+          jotform_submission_date     = COALESCE($36, jotform_submission_date),
+          raw_jotform_payload         = $37,
+          updated_at                  = NOW()
+        WHERE id = $1
+        RETURNING id, first_name, last_name, email, program
+      `, [
+        existingStudent.id,
+        studentData.first_name, studentData.last_name, studentData.middle_name, cleanEmail, studentData.cell_phone, studentData.home_phone, studentData.date_of_birth, studentData.gender, studentData.ssn_last4,
+        studentData.address_street, studentData.address_city, studentData.address_state, studentData.address_zip, newProgram, studentData.status, studentData.enrollment_date,
+        studentData.emergency_contact_name, studentData.emergency_contact_phone, studentData.emergency_contact_relation,
+        studentData.highest_education, studentData.high_school_name, studentData.high_school_grad_year, studentData.ged_certificate,
+        studentData.currently_employed, studentData.employer_name, studentData.employer_phone,
+        studentData.funding_source, studentData.financial_aid_status, studentData.scholarship, studentData.scholarship_name,
+        mergedNotes, mergedDriveLink, studentData.photo_url, studentData.jotform_submission_id, studentData.jotform_submission_date, JSON.stringify(mergedPayload)
+      ]);
+
+      const student = result.rows[0];
+      studentId = student.id;
+      studentProgram = student.program;
+    } else {
+      const result = await pool.query(`
+        INSERT INTO students (
+          first_name, last_name, middle_name, email, cell_phone, home_phone, date_of_birth, gender, ssn_last4,
+          address_street, address_city, address_state, address_zip, program, status, enrollment_date,
+          emergency_contact_name, emergency_contact_phone, emergency_contact_relation,
+          highest_education, high_school_name, high_school_grad_year, ged_certificate,
+          currently_employed, employer_name, employer_phone,
+          funding_source, financial_aid_status, scholarship, scholarship_name,
+          admin_notes, drive_link, photo_url, intake_source, jotform_submission_id, jotform_submission_date, raw_jotform_payload
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9,
+          $10, $11, $12, $13, $14, $15, $16,
+          $17, $18, $19,
+          $20, $21, $22, $23,
+          $24, $25, $26,
+          $27, $28, $29, $30,
+          $31, $32, $33, 'jotform', $34, $35, $36
+        )
+        RETURNING id, first_name, last_name, email, program
+      `, [
+        studentData.first_name, studentData.last_name, studentData.middle_name, cleanEmail, studentData.cell_phone, studentData.home_phone, studentData.date_of_birth, studentData.gender, studentData.ssn_last4,
+        studentData.address_street, studentData.address_city, studentData.address_state, studentData.address_zip, studentData.program, studentData.status, studentData.enrollment_date,
+        studentData.emergency_contact_name, studentData.emergency_contact_phone, studentData.emergency_contact_relation,
+        studentData.highest_education, studentData.high_school_name, studentData.high_school_grad_year, studentData.ged_certificate,
+        studentData.currently_employed, studentData.employer_name, studentData.employer_phone,
+        studentData.funding_source, studentData.financial_aid_status, studentData.scholarship, studentData.scholarship_name,
+        studentData.admin_notes, studentData.drive_link, studentData.photo_url, studentData.jotform_submission_id, studentData.jotform_submission_date, JSON.stringify(studentData.raw_jotform_payload)
+      ]);
+
+      const student = result.rows[0];
+      studentId = student.id;
+      studentProgram = student.program;
+    }
+
+    console.log(`✅ Jotform student upserted: ${studentData.first_name} ${studentData.last_name} (ID: ${studentId})`);
 
     // Jotform requires a 200 response to confirm receipt
     res.status(200).json({
