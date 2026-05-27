@@ -1,0 +1,123 @@
+/* ============================================================
+   globals.css — Base resets & typography
+   ============================================================ */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  /* ROWSC Brand Colors */
+  --blue-royal:    #0044cc;
+  --blue-dark:     #002a80;
+  --blue-deeper:   #001a50;
+  --blue-mid:      #0055ff;
+  --gold:          #ffcc00;
+  --gold-dark:     #cc9900;
+  --gold-light:    #ffe066;
+  --green-action:  #008000;
+  --green-hover:   #006600;
+  --green-light:   #e6f4e6;
+
+  /* Paper & Folder */
+  --manila:        #e8dcb5;
+  --manila-dark:   #d4c494;
+  --manila-shadow: #b8a870;
+  --paper:         #fdfbf7;
+  --paper-line:    #e8e4d8;
+  --paper-shadow:  #c8c4b0;
+
+  /* Metal / Cabinet */
+  --metal-light:   #c8d4e8;
+  --metal-mid:     #8899bb;
+  --metal-dark:    #445577;
+  --metal-shine:   #dde8f5;
+
+  /* Neutrals */
+  --gray-100: #f5f7fa;
+  --gray-200: #e8edf5;
+  --gray-300: #ccd3e0;
+  --gray-400: #99a8c0;
+  --gray-500: #667799;
+  --gray-600: #445577;
+  --gray-700: #334466;
+  --gray-800: #223355;
+  --gray-900: #111a33;
+
+  /* Status */
+  --status-active:    #008000;
+  --status-inactive:  #cc3300;
+  --status-pending:   #cc7700;
+  --status-graduated: #0044cc;
+
+  /* Typography */
+  --font-body:    'Inter', system-ui, sans-serif;
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-stamp:   'Special Elite', 'Courier New', monospace;
+
+  /* Spacing */
+  --radius-sm:  4px;
+  --radius-md:  8px;
+  --radius-lg:  16px;
+  --radius-xl:  24px;
+
+  /* Transitions */
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--blue-deeper);
+  color: var(--gray-800);
+  min-height: 100vh;
+  overflow-x: hidden;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font-family: var(--font-body);
+  cursor: pointer;
+  border: none;
+  outline: none;
+}
+
+input, textarea, select {
+  font-family: var(--font-body);
+  outline: none;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* ── Scrollbar Styling ────────────────────────────────────── */
+::-webkit-scrollbar         { width: 6px; height: 6px; }
+::-webkit-scrollbar-track   { background: rgba(0,0,0,0.1); border-radius: 3px; }
+::-webkit-scrollbar-thumb   { background: var(--gold-dark); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--gold); }
+
+/* ── Utility Classes ─────────────────────────────────────── */
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0,0,0,0);
+  white-space: nowrap; border: 0;
+}
+
+.text-gold    { color: var(--gold); }
+.text-green   { color: var(--green-action); }
+.text-blue    { color: var(--blue-royal); }
+.text-muted   { color: var(--gray-500); }
+.font-display { font-family: var(--font-display); }
+.font-stamp   { font-family: var(--font-stamp); }
