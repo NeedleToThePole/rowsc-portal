@@ -1,111 +1,226 @@
 // ============================================================
 // backend/src/services/jotformMapper.js
-// Maps raw Jotform submission payload to PostgreSQL schema
+// Maps raw Jotform submission payload and CSV rows to PostgreSQL schema
 // ============================================================
 
-/**
- * Jotform sends fields as:
- *   q1_firstName, q2_lastName, q3_email, etc.
- * The exact field IDs depend on your form configuration.
- * Update the mapping keys below to match YOUR Jotform field names.
- * All unmapped fields are stored in raw_jotform_payload (JSONB).
- */
+const extractFieldsFromPayload = (payload) => {
+  const normPayload = {};
+  for (const [key, val] of Object.entries(payload)) {
+    if (key && val !== undefined && val !== null && val !== '') {
+      const cleanKey = key.toLowerCase().trim();
+      normPayload[cleanKey] = typeof val === 'string' ? val.trim() : val;
+    }
+  }
 
-const mapJotformToStudent = (payload) => {
-  // Helper: safely extract a value, return null if missing
-  const get = (key) => {
-    const val = payload[key];
-    if (val === undefined || val === null || val === '') return null;
-    return String(val).trim();
+  const findVal = (keywords) => {
+    // Look for any key that contains one of the keywords
+    for (const kw of keywords) {
+      for (const [k, v] of Object.entries(normPayload)) {
+        if (k.includes(kw)) {
+          return v;
+        }
+      }
+    }
+    return null;
   };
 
-  // Helper: parse boolean from "Yes"/"No" strings
-  const bool = (key) => {
-    const val = get(key);
-    if (!val) return null;
-    return val.toLowerCase() === 'yes' || val === '1' || val === 'true';
+  const findExactVal = (keywords) => {
+    for (const kw of keywords) {
+      if (normPayload[kw] !== undefined) {
+        return normPayload[kw];
+      }
+    }
+    return null;
   };
 
-  // Helper: parse date or return null
-  const date = (key) => {
-    const val = get(key);
-    if (!val) return null;
-    const d = new Date(val);
-    return isNaN(d.getTime()) ? null : d.toISOString().split('T')[0];
+  // 1. Names
+  let firstName = findVal(['first name', 'firstname', 'first_name']);
+  if (!firstName) firstName = findVal(['first']);
+  
+  let lastName = findVal(['last name', 'lastname', 'last_name']);
+  if (!lastName) lastName = findVal(['last']);
+  
+  let middleName = findVal(['middle name', 'middlename', 'middle_name']);
+  if (!middleName) middleName = findVal(['middle']);
+
+  // 2. Email
+  const email = findExactVal(['email', 'email address', 'email_address']) || findVal(['email']);
+
+  // 3. Course / Program
+  // Supports "New Students Course", "Returning Students Course", "Program", "Course", etc.
+  const newStudentsCourse = findVal(['new student course', 'new students course', 'new_student_course']);
+  const returningStudentsCourse = findVal(['returning student course', 'returning students course', 'returning_student_course']);
+  const genericCourse = findVal(['course', 'program']);
+  const program = newStudentsCourse || returningStudentsCourse || genericCourse || 'Undeclared';
+
+  // 4. Phone
+  let cellPhone = findVal(['cell phone', 'cellphone', 'cell_phone']);
+  if (!cellPhone) cellPhone = findVal(['cell']);
+  
+  const homePhone = findVal(['home phone', 'homephone', 'home_phone']);
+
+  // 5. DOB, Gender, SSN
+  let dateOfBirth = findVal(['date of birth', 'date_of_birth', 'dob', 'birthdate', 'birth_date']);
+  if (dateOfBirth) {
+    const parsedDob = Date.parse(dateOfBirth);
+    if (!isNaN(parsedDob)) {
+      dateOfBirth = new Date(parsedDob).toISOString().split('T')[0];
+    } else {
+      dateOfBirth = null;
+    }
+  }
+  const gender = findExactVal(['gender', 'sex']) || findVal(['gender', 'sex']);
+  
+  let ssnLast4 = null;
+  const rawSsn = findVal(['social security', 'ssn', 'social_security']);
+  if (rawSsn) {
+    const digits = String(rawSsn).replace(/\D/g, '');
+    if (digits.length >= 4) {
+      ssnLast4 = digits.slice(-4);
+    } else if (digits.length > 0) {
+      ssnLast4 = digits.padStart(4, '0');
+    }
+  }
+
+  // 6. Address
+  const addressStreet = findVal(['street address', 'street_address', 'address_street']) || findVal(['mailing address', 'mailing_address', 'address_mailing']) || findVal(['address']);
+  const addressCity = findVal(['city', 'address_city']);
+  const addressState = findVal(['state', 'address_state']);
+  const addressZip = findVal(['zip', 'zipcode', 'zip_code', 'address_zip']);
+
+  // 7. Status & Enrollment Date
+  const status = findVal(['status', 'student status', 'enrollment status', 'enrollment_status']) || 'Active';
+  let enrollmentDate = findVal(['enrollment date', 'enrollment_date']) || findExactVal(['date']) || findVal(['submission date', 'submission_date']);
+  if (enrollmentDate) {
+    const parsedEnroll = Date.parse(enrollmentDate);
+    if (!isNaN(parsedEnroll)) {
+      enrollmentDate = new Date(parsedEnroll).toISOString().split('T')[0];
+    } else {
+      enrollmentDate = new Date().toISOString().split('T')[0];
+    }
+  } else {
+    enrollmentDate = new Date().toISOString().split('T')[0];
+  }
+
+  // 8. Emergency Contact
+  const emergencyContactName = findVal(['emergency contact name', 'emergency_contact_name', 'emergency name']);
+  let emergencyContactPhone = findVal(['emergency contact phone', 'emergency_contact_phone', 'emergency phone']);
+  if (!emergencyContactPhone) {
+    emergencyContactPhone = findVal(['emergency_contact_phone', 'emergencycontact_phone']);
+  }
+  const emergencyContactRelation = findVal(['emergency contact relation', 'emergency_contact_relation', 'relationship']);
+
+  // 9. Education
+  const highestEducation = findVal(['highest education', 'highest_education', 'degree']);
+  const highSchoolName = findVal(['school name', 'high school name', 'high_school_name', 'school/institute/university attended']);
+  
+  let highSchoolGradYear = null;
+  const rawHsYear = findVal(['grad year', 'graduation year', 'year of graduation', 'high_school_grad_year']);
+  if (rawHsYear) {
+    highSchoolGradYear = parseInt(String(rawHsYear).replace(/\D/g, '')) || null;
+  }
+  
+  const parseBool = (v) => {
+    if (!v) return false;
+    const l = String(v).toLowerCase();
+    return l === 'true' || l === 'yes' || l === '1' || l === 'y';
   };
+  const gedCertificate = parseBool(findVal(['ged', 'ged_certificate']));
+
+  // 10. Employment
+  const currentlyEmployed = parseBool(findVal(['employed', 'currently_employed']));
+  const employerName = findVal(['employer name', 'employer_name']);
+  const employerPhone = findVal(['employer phone', 'employer_phone']);
+
+  // 11. Funding
+  const fundingSource = findVal(['funding source', 'funding_source']);
+  const financialAidStatus = findVal(['financial aid', 'financial_aid_status']);
+  const scholarship = parseBool(findVal(['scholarship']));
+  const scholarshipName = findVal(['scholarship name', 'scholarship_name']);
+
+  // 12. Notes & Documents
+  const adminNotes = findVal(['notes', 'admin notes', 'admin_notes', 'intake notes', 'intake_notes']);
+  
+  // Extract all drive and Jotform links
+  const driveLinks = [];
+  let photoUrl = null;
+  for (const [k, v] of Object.entries(normPayload)) {
+    if (v && typeof v === 'string') {
+      const parts = v.split(',').map(p => p.trim());
+      for (const p of parts) {
+        if (p.includes('drive.google.com') || p.includes('bit.ly/') || p.includes('jotform.com/uploads/') || p.includes('jotform.com/signed/')) {
+          const isPhoto = p.toLowerCase().match(/\.(jpeg|jpg|gif|png)$/);
+          const isSignature = p.toLowerCase().includes('signature');
+          if (isPhoto && !isSignature && !photoUrl) {
+            photoUrl = p;
+          } else {
+            driveLinks.push(p);
+          }
+        }
+      }
+    }
+  }
+  const driveLink = driveLinks.length > 0 ? driveLinks.join(', ') : null;
 
   return {
-    // ── Core Identity ───────────────────────────────────────
-    first_name:                 get('q3_firstName')   || get('q1_name')       || get('firstName'),
-    last_name:                  get('q3_lastName')    || get('q2_name')       || get('lastName'),
-    middle_name:                get('q4_middleName')  || get('middleName'),
-    email:                      get('q5_email')       || get('email'),
-    cell_phone:                 get('q6_cellPhone')   || get('cellPhone')     || get('phone'),
-    home_phone:                 get('q7_homePhone')   || get('homePhone'),
-    date_of_birth:              date('q8_dob')        || date('dateOfBirth'),
-    gender:                     get('q9_gender')      || get('gender'),
-    ssn_last4:                  get('q10_ssnLast4')   || get('ssnLast4'),
-
-    // ── Address ─────────────────────────────────────────────
-    address_street:             get('q11_address')    || get('address[addr_line1]'),
-    address_city:               get('q12_city')       || get('address[city]'),
-    address_state:              get('q13_state')      || get('address[state]'),
-    address_zip:                get('q14_zip')        || get('address[postal]'),
-
-    // ── Program Enrollment ──────────────────────────────────
-    program:                    get('q15_program')    || get('program')       || 'Undeclared',
-    program_category:           get('q16_programCategory') || get('programCategory'),
-    start_date:                 date('q17_startDate') || date('startDate'),
-    expected_graduation_date:   date('q18_gradDate')  || date('expectedGraduationDate'),
-
-    // ── Emergency Contact ───────────────────────────────────
-    emergency_contact_name:     get('q19_emergencyName')    || get('emergencyContactName'),
-    emergency_contact_phone:    get('q20_emergencyPhone')   || get('emergencyContactPhone'),
-    emergency_contact_relation: get('q21_emergencyRelation')|| get('emergencyContactRelation'),
-
-    // ── Education Background ────────────────────────────────
-    highest_education:          get('q22_education')    || get('highestEducation'),
-    high_school_name:           get('q23_hsName')       || get('highSchoolName'),
-    high_school_grad_year:      parseInt(get('q24_hsYear') || get('highSchoolGradYear')) || null,
-    ged_certificate:            bool('q25_ged')         || bool('gedCertificate'),
-
-    // ── Employment ──────────────────────────────────────────
-    currently_employed:         bool('q26_employed')    || bool('currentlyEmployed'),
-    employer_name:              get('q27_employer')     || get('employerName'),
-    employer_phone:             get('q28_employerPhone')|| get('employerPhone'),
-
-    // ── Financial Aid ───────────────────────────────────────
-    funding_source:             get('q29_funding')       || get('fundingSource'),
-    financial_aid_status:       get('q30_finAid')        || get('financialAidStatus'),
-    scholarship:                bool('q31_scholarship')  || bool('scholarship'),
-    scholarship_name:           get('q32_scholarName')   || get('scholarshipName'),
-
-    // ── WIOA Fields ─────────────────────────────────────────
-    wioa_enrolled:              bool('q33_wioa')          || bool('wioaEnrolled'),
-    wioa_participant_id:        get('q34_wioaId')         || get('wioaParticipantId'),
-    wioa_case_manager:          get('q35_caseManager')    || get('wioaCaseManager'),
-    veteran_status:             bool('q36_veteran')       || bool('veteranStatus'),
-    disability_status:          bool('q37_disability')    || bool('disabilityStatus'),
-    homeless_status:            bool('q38_homeless')      || bool('homelessStatus'),
-    ex_offender_status:         bool('q39_exOffender')    || bool('exOffenderStatus'),
-    snap_recipient:             bool('q40_snap')          || bool('snapRecipient'),
-    tanf_recipient:             bool('q41_tanf')          || bool('tanfRecipient'),
-
-    // ── Compliance ──────────────────────────────────────────
-    hipaa_signed:               bool('q42_hipaa')          || bool('hipaaSigned'),
-    enrollment_agreement_signed:bool('q43_enrollAgree')    || bool('enrollmentAgreementSigned'),
-
-    // ── Jotform Meta ────────────────────────────────────────
-    jotform_submission_id:      get('submissionID') || get('submission_id'),
-    jotform_submission_date:    new Date().toISOString(),
-    intake_source:              'jotform',
-
-    // ── Notes ───────────────────────────────────────────────
-    intake_notes:               get('q44_notes') || get('additionalNotes'),
-
-    // ── Raw payload stored as JSONB ─────────────────────────
-    raw_jotform_payload:        payload,
+    first_name: firstName,
+    last_name: lastName,
+    middle_name: middleName,
+    email,
+    cell_phone: cellPhone,
+    home_phone: homePhone,
+    date_of_birth: dateOfBirth,
+    gender,
+    ssn_last4: ssnLast4,
+    address_street: addressStreet,
+    address_city: addressCity,
+    address_state: addressState,
+    address_zip: addressZip,
+    program,
+    status,
+    enrollment_date: enrollmentDate,
+    emergency_contact_name: emergencyContactName,
+    emergency_contact_phone: emergencyContactPhone,
+    emergency_contact_relation: emergencyContactRelation,
+    highest_education: highestEducation,
+    high_school_name: highSchoolName,
+    high_school_grad_year: highSchoolGradYear,
+    ged_certificate: gedCertificate,
+    currently_employed: currentlyEmployed,
+    employer_name: employerName,
+    employer_phone: employerPhone,
+    funding_source: fundingSource,
+    financial_aid_status: financialAidStatus,
+    scholarship,
+    scholarship_name: scholarshipName,
+    admin_notes: adminNotes,
+    drive_link: driveLink,
+    photo_url: photoUrl,
+    raw_jotform_payload: payload
   };
 };
 
-module.exports = { mapJotformToStudent };
+const mapJotformToStudent = (payload) => {
+  let parsedPayload = { ...payload };
+  if (payload.rawRequest) {
+    try {
+      const parsedRaw = typeof payload.rawRequest === 'string'
+        ? JSON.parse(payload.rawRequest)
+        : payload.rawRequest;
+      parsedPayload = { ...parsedPayload, ...parsedRaw };
+    } catch (e) {
+      console.warn('⚠️ Failed to parse rawRequest JSON in Jotform webhook:', e.message);
+    }
+  }
+  
+  const student = extractFieldsFromPayload(parsedPayload);
+  
+  // Make sure to add Jotform specific metadata
+  student.jotform_submission_id = payload.submissionID || payload.submission_id || null;
+  student.jotform_submission_date = new Date().toISOString();
+  student.intake_source = 'jotform';
+  
+  return student;
+};
+
+module.exports = { mapJotformToStudent, extractFieldsFromPayload };
