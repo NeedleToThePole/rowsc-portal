@@ -18,7 +18,23 @@ export const FolderTab = ({ student, onClick }) => {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-        <span className="manila-folder-title">{displayName}</span>
+        <span className="manila-folder-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {displayName}
+          {program && program.includes(' & ') && (
+            <span style={{
+              fontSize: '8px',
+              background: '#b38600',
+              color: '#fff',
+              padding: '1px 5px',
+              borderRadius: '3px',
+              fontWeight: 800,
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px'
+            }}>
+              Dual Enrolled
+            </span>
+          )}
+        </span>
         <span style={{ fontSize: '11px', color: 'rgba(0,0,0,0.4)', fontWeight: 500 }}>
           ID: #{String(student.id).padStart(5, '0')}
         </span>

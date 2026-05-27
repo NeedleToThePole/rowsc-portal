@@ -139,8 +139,22 @@ export const StudentModal = ({ student, onClose, linkDriveFolder, updateStudent 
           
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <span style={{ fontSize: '10px', color: '#777', fontWeight: 700 }}>ACADEMIC PROGRAM</span>
-            <span style={{ fontSize: '14px', fontWeight: 600, color: '#333', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '14px', fontWeight: 600, color: '#333', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
               <Award size={16} color="#0044cc" /> {program}
+              {program && program.includes(' & ') && (
+                <span style={{
+                  fontSize: '9px',
+                  background: '#d62828',
+                  color: '#fff',
+                  padding: '2px 8px',
+                  borderRadius: '3px',
+                  fontWeight: 800,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px'
+                }}>
+                  Dual Enrolled
+                </span>
+              )}
             </span>
             <span style={{ fontSize: '11px', color: '#888', fontStyle: 'italic' }}>({program_category || 'N/A'})</span>
           </div>

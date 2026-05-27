@@ -129,11 +129,23 @@ router.post('/migrate-csv', requireAdminSecret, upload.single('csv'), async (req
           ON CONFLICT (email) DO UPDATE SET
             first_name   = EXCLUDED.first_name,
             last_name    = EXCLUDED.last_name,
-            program      = EXCLUDED.program,
+            program      = CASE 
+                             WHEN students.program = EXCLUDED.program THEN students.program
+                             WHEN students.program LIKE '%' || EXCLUDED.program || '%' THEN students.program
+                             ELSE students.program || ' & ' || EXCLUDED.program
+                           END,
             status       = EXCLUDED.status,
-            drive_link   = COALESCE(EXCLUDED.drive_link, students.drive_link),
-            admin_notes  = COALESCE(EXCLUDED.admin_notes, students.admin_notes),
-            raw_jotform_payload = EXCLUDED.raw_jotform_payload,
+            drive_link   = CASE
+                             WHEN students.drive_link IS NULL THEN EXCLUDED.drive_link
+                             WHEN EXCLUDED.drive_link IS NULL THEN students.drive_link
+                             WHEN students.drive_link LIKE '%' || EXCLUDED.drive_link || '%' THEN students.drive_link
+                             ELSE students.drive_link || ', ' || EXCLUDED.drive_link
+                           END,
+            admin_notes  = CASE
+                             WHEN students.program = EXCLUDED.program THEN COALESCE(students.admin_notes, EXCLUDED.admin_notes)
+                             ELSE COALESCE(students.admin_notes, '') || E'\n[SYSTEM: Duplicate application merged for course: ' || EXCLUDED.program || ']'
+                           END,
+            raw_jotform_payload = students.raw_jotform_payload || EXCLUDED.raw_jotform_payload,
             updated_at   = NOW()
         `, [
           firstName, lastName, cleanEmail, phone, program, status, 
