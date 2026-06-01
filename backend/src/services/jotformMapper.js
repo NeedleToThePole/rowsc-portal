@@ -16,7 +16,8 @@ const extractFieldsFromPayload = (payload) => {
     // Look for any key that contains one of the keywords
     for (const kw of keywords) {
       for (const [k, v] of Object.entries(normPayload)) {
-        if (k.includes(kw)) {
+        // Strict length limit to avoid matching long question/essay descriptions (e.g., matching "course" inside an essay topic)
+        if (k.includes(kw) && k.length < 45) {
           return v;
         }
       }

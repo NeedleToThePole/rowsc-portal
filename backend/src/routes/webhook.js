@@ -99,11 +99,22 @@ router.post('/jotform', validateJotformSignature, async (req, res) => {
     let studentProgram;
 
     if (existingStudent) {
-      // Merge program
+      // Merge program (skip merging 'Undeclared')
       const existingProgram = existingStudent.program;
       let newProgram = studentData.program;
-      if (existingProgram && newProgram && existingProgram !== newProgram && !existingProgram.includes(newProgram)) {
-        newProgram = `${existingProgram} & ${newProgram}`;
+      if (existingProgram && newProgram && existingProgram !== newProgram) {
+        const isExistingUndeclared = !existingProgram || existingProgram.trim().toLowerCase() === 'undeclared';
+        const isNewUndeclared = !newProgram || newProgram.trim().toLowerCase() === 'undeclared';
+        
+        if (isExistingUndeclared) {
+          newProgram = newProgram;
+        } else if (isNewUndeclared) {
+          newProgram = existingProgram;
+        } else if (!existingProgram.includes(newProgram)) {
+          newProgram = `${existingProgram} & ${newProgram}`;
+        } else {
+          newProgram = existingProgram;
+        }
       } else if (existingProgram) {
         newProgram = existingProgram;
       }

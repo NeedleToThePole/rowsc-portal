@@ -151,8 +151,16 @@ export const FileCabinet = ({ user, onLogout }) => {
           <StudentModal
             student={selectedStudent}
             onClose={handleCloseModal}
-            linkDriveFolder={linkDriveFolder}
-            updateStudent={updateStudent}
+            linkDriveFolder={async (id, drive_link) => {
+              const res = await linkDriveFolder(id, drive_link);
+              setSelectedStudent(prev => ({ ...prev, drive_link: res.student.drive_link }));
+              return res;
+            }}
+            updateStudent={async (id, data) => {
+              const res = await updateStudent(id, data);
+              setSelectedStudent(res.student);
+              return res;
+            }}
           />
         )}
       </AnimatePresence>

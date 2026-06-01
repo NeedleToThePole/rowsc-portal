@@ -208,10 +208,22 @@ router.patch('/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const allowedFields = [
-      'first_name','last_name','email','cell_phone','program','program_category',
-      'status','admin_notes','counselor_name','enrollment_date','start_date',
-      'expected_graduation_date','graduation_date','funding_source',
-      'wioa_enrolled','wioa_participant_id','wioa_case_manager',
+      'first_name', 'last_name', 'middle_name', 'email', 'cell_phone', 'home_phone',
+      'date_of_birth', 'gender', 'ssn_last4',
+      'address_street', 'address_city', 'address_state', 'address_zip',
+      'program', 'program_category', 'status', 'enrollment_date', 'start_date',
+      'expected_graduation_date', 'graduation_date',
+      'emergency_contact_name', 'emergency_contact_phone', 'emergency_contact_relation',
+      'highest_education', 'high_school_name', 'high_school_grad_year', 'ged_certificate',
+      'currently_employed', 'employer_name', 'employer_phone',
+      'funding_source', 'financial_aid_status', 'scholarship', 'scholarship_name',
+      'background_check_date', 'background_check_passed',
+      'drug_test_date', 'drug_test_passed',
+      'immunization_complete', 'hipaa_signed', 'enrollment_agreement_signed',
+      'admin_notes', 'photo_url', 'drive_link', 'counselor_name',
+      'wioa_enrolled', 'wioa_participant_id', 'wioa_case_manager',
+      'veteran_status', 'disability_status', 'homeless_status', 'ex_offender_status',
+      'snap_recipient', 'tanf_recipient'
     ];
 
     const updates = [];
