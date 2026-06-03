@@ -122,7 +122,8 @@ export const AdminEntryForm = ({ onSubmitSuccess, addStudent }) => {
         setFormData(prev => ({ ...prev, photo_url: res.data.fileUrl }));
       } else {
         const currentLinks = formData.drive_link ? formData.drive_link.split(',').map(l => l.trim()).filter(Boolean) : [];
-        currentLinks.push(window.location.origin + res.data.fileUrl);
+        const backendHost = import.meta.env.PROD ? 'https://rowsc-api.onrender.com' : window.location.origin;
+        currentLinks.push(backendHost + res.data.fileUrl);
         setFormData(prev => ({ ...prev, drive_link: currentLinks.join(', ') }));
       }
       alert(`${file.name} uploaded successfully!`);

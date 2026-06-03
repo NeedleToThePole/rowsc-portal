@@ -11,6 +11,21 @@ export const DriveLinker = ({ studentId, currentLink, onLinkSuccess }) => {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
 
+  const resolveLink = (link) => {
+    if (!link) return '';
+    if (link.startsWith('/uploads')) {
+      const backendHost = import.meta.env.PROD ? 'https://rowsc-api.onrender.com' : '';
+      return `${backendHost}${link}`;
+    }
+    if (link.includes('rowsc-portal.vercel.app/uploads')) {
+      return link.replace('rowsc-portal.vercel.app', 'rowsc-api.onrender.com');
+    }
+    if (import.meta.env.PROD && link.includes('localhost:5173/uploads')) {
+      return link.replace('localhost:5173', 'rowsc-api.onrender.com');
+    }
+    return link;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -21,8 +36,8 @@ export const DriveLinker = ({ studentId, currentLink, onLinkSuccess }) => {
       return;
     }
 
-    if (!driveUrl.includes('drive.google.com')) {
-      setError('Link must be a valid Google Drive URL.');
+    if (!driveUrl.includes('drive.google.com') && !driveUrl.includes('/uploads/')) {
+      setError('Link must be a valid Google Drive URL or local upload.');
       return;
     }
 
@@ -55,7 +70,7 @@ export const DriveLinker = ({ studentId, currentLink, onLinkSuccess }) => {
                     {link}
                   </span>
                   <a
-                    href={link}
+                    href={resolveLink(link)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="btn-gold"

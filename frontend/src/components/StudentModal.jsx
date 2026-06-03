@@ -209,7 +209,8 @@ export const StudentModal = ({ student, onClose, linkDriveFolder, updateStudent 
         setEditForm(prev => ({ ...prev, photo_url: res.data.fileUrl }));
       } else {
         const currentLinks = editForm.drive_link ? editForm.drive_link.split(',').map(l => l.trim()).filter(Boolean) : [];
-        currentLinks.push(window.location.origin + res.data.fileUrl);
+        const backendHost = import.meta.env.PROD ? 'https://rowsc-api.onrender.com' : window.location.origin;
+        currentLinks.push(backendHost + res.data.fileUrl);
         setEditForm(prev => ({ ...prev, drive_link: currentLinks.join(', ') }));
       }
       alert(`${file.name} uploaded successfully!`);
@@ -327,7 +328,7 @@ export const StudentModal = ({ student, onClose, linkDriveFolder, updateStudent 
               <Paperclip size={20} style={{ transform: 'rotate(-45deg)' }} />
             </div>
             <img
-              src={photo_url}
+              src={photo_url.startsWith('/uploads') && import.meta.env.PROD ? `https://rowsc-api.onrender.com${photo_url}` : photo_url}
               alt={fullName}
               style={{
                 width: '83px',
